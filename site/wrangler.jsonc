@@ -1,0 +1,33 @@
+{
+  "name": "feynmans-prism-explore",
+  "account_id": "32c82b91b31827064e8a2b73aabbed44",
+  "compatibility_date": "2026-09-18",
+  "workers_dev": false,
+  "preview_urls": false,
+  "build": {
+    "command": "pnpm build"
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/music/ambience.mp3"
+    ]
+  },
+  "routes": [
+    {
+      "pattern": "explore.turingsbazaar.org",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "main": "worker.mjs",
+  "r2_buckets": [
+    {
+      "binding": "MUSIC",
+      "bucket_name": "noesis"
+    }
+  ]
+}
