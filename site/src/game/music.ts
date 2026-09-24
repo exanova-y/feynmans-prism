@@ -14,7 +14,7 @@ export class Ambience {
     this.volume = volume
     this.audio = new Audio(src)
     this.audio.loop = true
-    this.audio.preload = 'auto'
+    this.audio.preload = 'metadata'
     this.audio.addEventListener('error', () => (this.missing = true))
   }
 
@@ -24,6 +24,13 @@ export class Ambience {
     this.started = true
     this.audio.volume = 0
     this.audio.play().catch(() => (this.missing = true))
+  }
+
+  // Holds the track; resumes exactly where it stopped.
+  setPaused(paused: boolean) {
+    if (!this.started || this.missing) return
+    if (paused) this.audio.pause()
+    else this.audio.play().catch(() => {})
   }
 
   update(dt: number) {

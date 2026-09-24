@@ -10,13 +10,19 @@ import { dressWorld } from './dress.ts'
 import { Eridanus } from './eridanus.ts'
 import { Interactions, type Prompt } from './interactions.ts'
 import { Ambience } from './music.ts'
+import { Others } from './others.ts'
 import { damp } from './noise.ts'
 import { Particles } from './particles.ts'
 import { CART_CAM, Player } from './player.ts'
+import { Research, type Placed } from './research.ts'
 import { REGIONS, SEA_OVID, START, TRACKS, type Form } from './regions.ts'
 import { clearSave, loadSave, writeSave } from './save.ts'
 import { DUSK, GOLDEN, Sky } from './sky.ts'
 import { buildTerrain, buildWater, regionAt, waterAt } from './terrain.ts'
+
+// One pear on this machine serves both the room (others.ts) and the research
+// graph (research.ts); `?bridge=` points the page at another.
+const BRIDGE = new URLSearchParams(location.search).get('bridge') ?? 'http://127.0.0.1:7300'
 
 export interface HudState {
   region: string
@@ -27,8 +33,11 @@ export interface HudState {
   dialogue: { name: string; text: string } | null
   cart: { speed: number; braking: boolean } | null
   mapOpen: boolean
+  paused: boolean
   complete: boolean
   playerMap: { x: number; z: number }
+  research: Placed | null // the research island the player is on, if any
+  islets: Array<{ x: number; z: number; status: string }>
 }
 
 export class Engine {
@@ -40,6 +49,8 @@ export class Engine {
   readonly container: HTMLElement
   readonly audio = new GameAudio()
   readonly music = new Ambience('/music/ambience.mp3')
+  readonly others = new Others(BRIDGE)
+  readonly research = new Research(BRIDGE)
   readonly particles: Particles
   readonly eridanus = new Eridanus()
   readonly sky = new Sky()
@@ -50,6 +61,7 @@ export class Engine {
   readonly found = new Set<string>()
   interactions: Interactions
   mapOpen = false
+  paused = false
   complete = false
   private onHud: (s: HudState) => void
   private timer = new THREE.Timer()
@@ -58,6 +70,7 @@ export class Engine {
   private saveTimer = 0
   private raf = 0
   private onResize = () => this.resize()
+  private onHidden = () => document.hidden && this.setPaused(true)
 
   constructor(container: HTMLElement, controls: Controls, onHud: (s: HudState) => void) {
     this.container = container
@@ -71,12 +84,12 @@ export class Engine {
     this.view = new FollowCamera(new THREE.PerspectiveCamera(60, 1, 0.5, 1800))
     container.appendChild(this.renderer.domElement)
     controls.bind(this.renderer.domElement)
-    this.scene.fog = new THREE.Fog(GOLDEN.fog, 90, 560)
+    this.scene.fog = new THREE.Fog(GOLDEN.fog, 120, 1100) // far enough that the overview shows the whole map
     this.setupLights()
     const ground = new THREE.Group()
     ground.add(buildTerrain(), buildWater())
     this.world = dressWorld(ground)
-    this.scene.add(ground, this.player.group, this.eridanus.group, this.sky.group)
+    this.scene.add(ground, this.player.group, this.eridanus.group, this.sky.group, this.others.group, this.research.group)
     this.carts = TRACKS.map((t) => new Cart(t))
     for (const c of this.carts) this.scene.add(c.mesh)
     this.particles = new Particles(this.scene)
@@ -84,6 +97,18 @@ export class Engine {
     this.restore()
     this.resize()
     window.addEventListener('resize', this.onResize)
+    document.addEventListener('visibilitychange', this.onHidden)
+  }
+
+  setPaused(paused: boolean) {
+    if (this.paused === paused) return
+    this.paused = paused
+    this.music.setPaused(paused)
+    this.emitHud()
+  }
+
+  togglePause() {
+    this.setPaused(!this.paused)
   }
 
   private setupLights() {
@@ -136,23 +161,31 @@ export class Engine {
   dispose() {
     cancelAnimationFrame(this.raf)
     window.removeEventListener('resize', this.onResize)
+    document.removeEventListener('visibilitychange', this.onHidden)
     this.controls.unbind(this.renderer.domElement)
+    this.others.dispose()
+    this.research.dispose()
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }
 
+  // The one place that decides whether the world advances this frame.
   private step(dt: number) {
     const input = this.controls.read()
+    if (input.pause) this.togglePause()
+    if (this.paused) return this.renderer.render(this.scene, this.view.camera)
     if (input.any) {
       this.audio.start()
       this.music.start()
     }
     if (input.map) this.mapOpen = !this.mapOpen
     const cart = this.carts.find((c) => c.riding)
-    // Camera-relative movement: walking forward adopts the direction you look.
-    if (!cart && input.forward !== 0) this.player.heading += this.view.takeYaw()
+    // Camera-relative: walking forward adopts the direction you look; an owl
+    // always flies where the camera points.
+    if (!cart && (input.forward !== 0 || this.player.form === 'owl')) this.player.heading += this.view.takeYaw()
     if (cart) this.rideStep(dt, input, cart)
-    else this.player.update(dt, input, this.world.colliders)
+    else this.player.update(dt, input, this.world.colliders.concat(this.research.colliders))
+    this.research.update(this.player.pos)
     this.interactions.update(dt, input)
     this.collectMemories()
     const p = this.player
@@ -163,6 +196,7 @@ export class Engine {
     this.particles.update(dt, p.pos, p.form === 'owl')
     this.eridanus.update(dt)
     this.music.update(dt)
+    this.others.update(dt, { x: p.pos.x, y: p.pos.y, z: p.pos.z, heading: p.heading, form: p.form })
     this.renderer.render(this.scene, this.view.camera)
     this.tick(dt)
   }
@@ -224,6 +258,10 @@ export class Engine {
     }
     if (this.hudTimer < 0.1) return
     this.hudTimer = 0
+    this.emitHud()
+  }
+
+  private emitHud() {
     const cart = this.carts.find((c) => c.riding)
     const region = regionAt(this.player.pos.x, this.player.pos.z)
     const passage = region ?? SEA_OVID
@@ -236,8 +274,11 @@ export class Engine {
       dialogue: this.interactions.dialogue,
       cart: cart ? { speed: Math.abs(cart.speed), braking: this.interactions.braking } : null,
       mapOpen: this.mapOpen,
+      paused: this.paused,
       complete: this.complete,
       playerMap: { x: this.player.pos.x, z: this.player.pos.z },
+      research: this.research.near(this.player.pos),
+      islets: this.research.placed.map((p) => ({ x: p.x, z: p.z, status: p.ready ? 'ready' : p.status })),
     })
   }
 

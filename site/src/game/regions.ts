@@ -80,21 +80,30 @@ export const RIVERS: Record<string, Polyline> = {
 
 export interface Pool {
   id: string
+  label: string // where a naiad surfaces, for the prompt
   x: number
   z: number
   r: number
-  spring?: string // id of the pool a naiad surfaces at
+  spring?: string // id of the pool a naiad surfaces at; one ring through every pool
   y?: number // filled in by terrain.ts
 }
 
+// Underground water: E as a naiad in a pool carries you to its `spring`, and
+// the springs form one ring around the whole map, so repeated E tours it.
 export const POOLS: Pool[] = [
-  { id: 'nonacris-spring', x: -150, z: -105, r: 7, spring: 'ladon-hidden' },
-  { id: 'ladon-hidden', x: -178, z: -140, r: 6, spring: 'nonacris-spring' },
-  { id: 'castalian', x: 10, z: -150, r: 6, spring: 'thebes-fountain' },
-  { id: 'thebes-fountain', x: 60, z: -40, r: 5, spring: 'castalian' },
-  { id: 'corinth-fountain', x: 0, z: 60, r: 5, spring: 'crete-fountain' },
-  { id: 'crete-fountain', x: 0, z: 190, r: 5, spring: 'corinth-fountain' },
-  { id: 'lesbos-pool', x: 215, z: -86, r: 5 },
+  { id: 'nonacris-spring', label: 'the spring of Nonacris', x: -150, z: -105, r: 7, spring: 'ladon-hidden' },
+  { id: 'ladon-hidden', label: 'the pool behind the falls', x: -178, z: -140, r: 6, spring: 'castalian' },
+  { id: 'castalian', label: 'the Castalian spring', x: 10, z: -150, r: 6, spring: 'thebes-fountain' },
+  { id: 'thebes-fountain', label: 'the fountain of Thebes', x: 60, z: -40, r: 5, spring: 'cithaeron-spring' },
+  { id: 'cithaeron-spring', label: 'the spring on Cithaeron', x: 96, z: -14, r: 4, spring: 'corinth-fountain' },
+  { id: 'corinth-fountain', label: 'Pirene, in Corinth', x: 0, z: 60, r: 5, spring: 'isthmus-pool' },
+  { id: 'isthmus-pool', label: 'the harbour pool of Corinth', x: -14, z: 82, r: 5, spring: 'crete-fountain' },
+  { id: 'crete-fountain', label: "Daedalus' courtyard fountain", x: 0, z: 190, r: 5, spring: 'knossos-well' },
+  { id: 'knossos-well', label: 'the well at Knossos', x: -16, z: 198, r: 4, spring: 'delos-pool' },
+  { id: 'delos-pool', label: 'the pool on Delos', x: 85, z: 166, r: 4, spring: 'icaria-spring' },
+  { id: 'icaria-spring', label: 'the spring on Icaria', x: 181, z: 120, r: 4, spring: 'lesbos-pool' },
+  { id: 'hebrus-source', label: 'the source of the Hebrus', x: 146, z: -160, r: 5, spring: 'nonacris-spring' },
+  { id: 'lesbos-pool', label: 'the pool above Methymna', x: 215, z: -86, r: 5, spring: 'hebrus-source' },
 ]
 
 export interface TransformPoint {

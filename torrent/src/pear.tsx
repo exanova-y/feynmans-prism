@@ -14,6 +14,7 @@
 //   naming    coordinator election and device-name collisions
 //   peer      inbound connection handling
 //   lifecycle online, refresh, shutdown
+//   bridge    loopback SSE/POST for the browser game (site/)
 //   ui        Ink widgets and keys
 //
 // Run: pnpm pear -- [--room r] [--name n | --index i] [--auto-join id] [--coordinator] [--local] [--home dir]
@@ -21,6 +22,7 @@
 import { render } from 'ink'
 import { createInterface } from 'node:readline'
 import { parsePearArgs } from './args.ts'
+import { startBridge } from './bridge.ts'
 import { loadIdentity } from './identity.ts'
 import { goOnline } from './lifecycle.ts'
 import { becomeCoordinator } from './naming.ts'
@@ -44,6 +46,7 @@ self.fixedName = opts.name !== null
 room.on('connection', onConnection)
 if (opts.coordinator) becomeCoordinator('--coordinator')
 goOnline(room, opts.autoJoin)
+if (opts.bridge) startBridge(opts.bridge)
 
 // Ink needs raw-mode stdin; only mount the UI in an interactive terminal.
 // Headless (stdin not a TTY): each stdin line is sent as chat, like guillefix.

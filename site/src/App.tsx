@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Controls } from './game/controls.ts'
 import { Engine, type HudState } from './game/engine.ts'
-import { CartGauge, Dialogue, Help, MapOverlay, MobileControls, Notice, Prompt, Status } from './hud.tsx'
+import { CartGauge, Dialogue, Help, MapOverlay, MobileControls, Notice, PauseButton, PauseVeil, Prompt, Status } from './hud.tsx'
 import './App.css'
 
 const INITIAL: HudState = {
@@ -16,8 +16,11 @@ const INITIAL: HudState = {
   dialogue: null,
   cart: null,
   mapOpen: false,
+  paused: false,
   complete: false,
   playerMap: { x: 0, z: 0 },
+  research: null,
+  islets: [],
 }
 
 function App() {
@@ -36,7 +39,9 @@ function App() {
   return (
     <div className="game">
       <div ref={mount} className="canvas" />
+      <PauseVeil hud={hud} />
       <Status hud={hud} />
+      <PauseButton hud={hud} onToggle={() => engine.current?.togglePause()} />
       <CartGauge hud={hud} />
       <Prompt hud={hud} />
       <Dialogue hud={hud} />

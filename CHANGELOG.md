@@ -3,6 +3,34 @@
 Newest first, start with yyyy-mm-dd in title
 
 
+## 2026-09-18 — Other pears in the game; owls fly where you look
+
+- `torrent/src/bridge.ts`: each pear serves its room to the browser over
+  loopback with no dependency — `GET /events` (SSE snapshot every 200 ms:
+  self + peers with name, user, joined, pose) and `POST /pose`. A posted
+  pose is gossiped as a new `pose` control message; `Remote.pose` keeps the
+  last one. `pear --bridge <port>` (default 7300 — 7200 belongs to `pnpm island` — `0` off). Test: `bridge`.
+- `site/src/game/others.ts`: subscribes to the bridge (retry every 10 s),
+  draws one figure per peer with a name label (`figures.ts`, now shared with
+  the player), lerps to gossiped poses, parks pears without a pose in a ring
+  in Nonacris' square, posts the local pose at 5 Hz. `?bridge=` overrides.
+- Flight: the owl's heading follows the camera every frame, not only on W.
+- Springs: six more pools (Cithaeron, Corinth harbour, Knossos, Delos,
+  Icaria, Hebrus source; an Acrocorinth one was tried and removed — the
+  lookout stays the cart's), all thirteen linked into one ring
+  around the map so repeated E tours every spring — separate loops trapped
+  you in Thebes. Each pool carries a label and the E prompt says where the
+  water leads; the "water remembers the way" line is gone. Checked every
+  link resolves and every pool surface sits above the sea.
+- Pause: ❚❚/▶ button top right, `P` or `Esc`, and a touch button. One check at
+  the top of `Engine.step` decides whether the world advances; when paused the
+  frame still renders under a veil, input is ignored, and the music holds
+  where it is. Hiding the tab pauses too.
+- Pan up = overview: Shift + middle drag upward lifts the camera above the
+  player (up to 260 m, faster the higher you are) while it keeps looking at
+  you, so the visible range widens; fog pushed out to 1100 so the whole map
+  shows from up there. Sideways pan unchanged and still eases out on movement.
+
 ## 2026-09-18 — Changing Shores: Ovid panel, shapes anywhere, music always
 
 - Music (`public/music/ambience.mp3`, user-supplied) loops from the first
@@ -121,6 +149,73 @@ extra package): `three` 0.186 added with pnpm, `App.tsx` is the shell,
   hygiene). Dry-run: `pnpm join --no-launch` headless writes the username.
 - Open: the invite receipt itself (inviter credit) waits for the receipts
   stage; `pnpm invite` is admin-only until tiers gate it.
+
+## 2026-09-18 — One game: research islands in site/, roads worn in by walking
+
+Why: two browser surfaces (the 2D islands page and the Three.js game) were
+one too many. The pear's bridge now serves the graph and the game draws it.
+
+- `src/bridge-research.ts` (new): `GET /world?problem=`, `GET /research`
+  (SSE `world` events; resends when `graphVersion` ticks), `POST /explore`,
+  `POST /walk`. Routed from `bridge.ts`. `state.setGraph` bumps
+  `graphVersion` wherever a snapshot lands (peer, publish, absorb).
+- Edges have a `kind`: `requires` gates readiness, `road` never does. New
+  `trails` table counts walks between two islands (a < b); at `ROAD_AFTER`
+  = 3 the pair becomes a road edge whose weight keeps growing with walks and
+  pulls the two together in the layout. Existing graph files get the `kind`
+  column via ALTER on open. Wire: `walk`. `presence.walk`, `restructure.onWalk`.
+- `world.ts`: `title`, `kind` on bridges, `trails`.
+- Removed `scripts/island.ts` and `assets/island.html` (superseded).
+- `site/src/game/research.ts` (new): subscribes to `/research`, builds one
+  archipelago per problem on the southwest sea (scale 0.075, centres near
+  (-190,110) and (-110,195)): islets with a lighthouse (solved), tree
+  (ready) or mist (blocked), causeways (stone) and roads (wood), faint trails
+  fading in with walks, shoals for proposals, floating id labels; islets are
+  colliders so a naiad docks rather than swims through. Arriving at a
+  different island of the same problem POSTs a walk. HUD: the status panel
+  shows the subproblem on an island; the minimap dots the islets.
+- Tests: `bridge-research` (world, stream, walk → road, explore validation),
+  `graph` (walks → road, roads never block), `world` (trails, title).
+- Not done: the Stellaris-style map view on M, quality quadrant per island,
+  the explore trigger in the game, walking on islets (they float; swim or
+  fly), multiplayer walk gossip beyond the coordinator.
+
+## 2026-09-18 — Islands: the graph as a browser map that grows when you walk off it
+
+Why: a map is a query surface. Where a player steps off the edge says which
+nodes to extrapolate from; the graph and the proposal queue already give the
+map its land and its provisional land.
+
+- `src/world.ts` (new, pure): snapshot → `World` (islands, bridges, sandbars,
+  bounds). FNV-1a `hash`, mulberry32 `rng`, deterministic force `layout`
+  (repel, attract along edges and parent links, gravity 0.05). Island radius
+  from text length, shape seed from `problemId/id`; sandbars sit 180 px from
+  their parent, or on the rim.
+- `src/explore.ts` (new): `exploreQuery` (weighted content words, stopword
+  list, longer words win ties), `proposalsFrom` (dedupe by normalized title
+  against nodes and pending), `openAlexSearch` (title-and-abstract filter,
+  which ANDs terms), `exploreQueries`/`explore` (domain words from the
+  problem title + anchor words, shortened 3+3 → 3+2 → 2+2 → 2+1 until the
+  search returns papers; relevance `search=` was too loose at any length).
+- `peer.ts`: control handlers run guarded; a throw is logged to the feed
+  instead of killing the pear (a ghost coordinator died on a moved sqlite).
+- `scripts/island.ts` (new): bridge pear on `:7200` — `/` page, `/problems`,
+  `/world?problem=`, `/events` (SSE, a world per graph broadcast), `POST
+  /explore {problemId, anchors}` → `propose-subproblem` per new paper, parent
+  = strongest anchor. Serves the webtorrent wavs.
+- `assets/island.html` (new): canvas, wasd, camera on the player, island text
+  in the HUD, ping on first landing, dashed border = bounds + 220 px; past it
+  the nearest island (two if nearly as close: interpolation) is POSTed, 8 s
+  cooldown.
+- `data.ts`: new problem `transducer-coverage` (owner-proposed: transducer
+  placement for 360° steering in the brain) with a seven-question starter
+  decomposition.
+- Tests: `world` (hash/rng, deterministic layout, spread bounded, mapping,
+  sandbar near parent), `explore` (query, dedupe, injected search).
+  Live smoke: coordinator + bridge, `/world` for both problems, `/explore`
+  against OpenAlex queued sandbars.
+- Not done: zoom into an island (hierarchy as level of detail), the boat
+  (diegetic loading), exploration cost/tiers, cross-problem roads, erosion.
 
 ## 2026-09-18 — Problem graph in SQLite, restructured by fragments
 

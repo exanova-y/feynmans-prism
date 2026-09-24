@@ -86,6 +86,36 @@ export const PROBLEMS: Problem[] = [
     ],
   },
   {
+    // Proposed by the project owner (not Emergent Mind), for the acoustics
+    // work; the first decomposition is a starter for the graph to reshape.
+    id: 'transducer-coverage',
+    title: 'Transducer placement for 360° brain coverage',
+    statement:
+      'Design the placement of ultrasound transducers on the head that minimizes resources (element count, aperture, power) while every steering angle within the brain, across all 360 degrees, can be reached with a usable focus.',
+    tokens: null,
+    subproblems: [
+      q(
+        'Which array geometries (hemispherical, ring, conformal patches) reach every steering angle through the skull with the fewest elements?',
+      ),
+      q(
+        'How do skull thickness and porosity bound the angles at which a focus can form, and where are the acoustic windows that relax that bound?',
+      ),
+      q(
+        'What minimum element count and aperture give a usable focal spot at each target depth and angle, and how does the answer change with frequency?',
+      ),
+      q(
+        'Can placement be posed as coverage optimization (greedy set cover or integer programming over candidate scalp positions) with a per-angle steering constraint?',
+      ),
+      q(
+        'What simulation fidelity (ray tracing versus full-wave k-Wave) is adequate to rank placements, and can a surrogate model stand in for full-wave runs?',
+      ),
+      q(
+        'How much coverage lost to skull aberration does per-element phase and amplitude correction recover, compared with adding elements?',
+      ),
+      q('How do thermal and cavitation safety limits constrain the resource-minimal placement?'),
+    ],
+  },
+  {
     id: 'poincare-inequality',
     title: 'Subspace conditional Poincaré inequality',
     statement:

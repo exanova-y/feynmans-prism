@@ -10,6 +10,7 @@ export interface Input {
   interact: boolean // E, one-shot
   transform: boolean // Q, one-shot
   map: boolean // M, one-shot
+  pause: boolean // P or Escape, one-shot
   any: boolean // anything at all this frame, to start audio
   look: { dx: number; dy: number } // left button drag, pixels
   pan: { dx: number; dy: number } // middle button drag, pixels
@@ -32,6 +33,8 @@ const KEYS: Record<string, string> = {
   KeyE: 'e',
   KeyQ: 'q',
   KeyM: 'm',
+  KeyP: 'p',
+  Escape: 'p',
 }
 
 export class Controls {
@@ -137,6 +140,7 @@ export class Controls {
       interact: this.pressed.has('e'),
       transform: this.pressed.has('q'),
       map: this.pressed.has('m'),
+      pause: this.pressed.has('p'),
       any: this.touched,
       look: { ...this.look },
       pan: { ...this.pan },

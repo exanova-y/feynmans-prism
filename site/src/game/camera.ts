@@ -16,6 +16,8 @@ export interface CamParams {
 
 const LOOK_RATE = 0.005
 const PAN_RATE = 0.03
+const LIFT_RATE = 0.12
+const LIFT_MAX = 260
 const ZOOM_RATE = 0.0012
 
 export class FollowCamera {
@@ -23,7 +25,8 @@ export class FollowCamera {
   yaw = 0 // offset from the player's heading
   pitch = 0
   zoom = 1
-  pan = new THREE.Vector3()
+  pan = new THREE.Vector3() // sideways only; eases out when you move
+  lift = 0 // panning up raises the camera over the player: the overview
   private first = true
 
   constructor(camera: THREE.PerspectiveCamera) {
@@ -35,8 +38,10 @@ export class FollowCamera {
     this.pitch = clamp(this.pitch + input.look.dy * LOOK_RATE, -0.5, 1.1)
     this.zoom = clamp(this.zoom * Math.exp(input.zoom * ZOOM_RATE), 0.35, 3.5)
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion)
-    this.pan.addScaledVector(right, -input.pan.dx * PAN_RATE * this.zoom)
-    this.pan.y += input.pan.dy * PAN_RATE * this.zoom
+    right.y = 0
+    this.pan.addScaledVector(right.normalize(), -input.pan.dx * PAN_RATE * this.zoom)
+    // Dragging up lifts; the higher you are, the faster it goes, so the range opens up.
+    this.lift = clamp(this.lift - input.pan.dy * LIFT_RATE * (1 + this.lift / 40), 0, LIFT_MAX)
     if (input.forward !== 0 || input.turn !== 0) this.pan.multiplyScalar(1 - damp(3, dt))
   }
 
@@ -48,10 +53,6 @@ export class FollowCamera {
     return yaw
   }
 
-  // Sea-or-sky feeling: far out, or looking from high above.
-  get farOut() {
-    return this.zoom > 2.2 || this.pitch > 0.7
-  }
 
   update(dt: number, input: Input, pos: THREE.Vector3, heading: number, cam: CamParams, underwater: boolean) {
     this.absorb(input, dt)
@@ -62,7 +63,7 @@ export class FollowCamera {
     focus.y += 1.5
     const target = new THREE.Vector3(
       focus.x - Math.sin(yaw) * dist * Math.cos(elevation),
-      focus.y + dist * Math.sin(elevation),
+      focus.y + dist * Math.sin(elevation) + this.lift,
       focus.z - Math.cos(yaw) * dist * Math.cos(elevation),
     )
     target.y = Math.max(target.y, heightAt(target.x, target.z) + 1.5)

@@ -96,3 +96,12 @@ sept 18 — problem graph notes:
 - readiness = open node whose every requires-edge points at a solved (or retired) node. this is the frontier the assigner should draw from; assignment.ts does not read it yet.
 - edges are within a problem for now. cross-problem "unlocks" (the review form's "Unlocks: #190, #191") need a global node id; `problemId/qN` would do.
 - pheromone bounds are copied from tools/research `trails` (0.05–10) so the two graphs can be merged later.
+
+sept 18 — islands (browser map) design notes:
+- two graphs, one map: similarity gives layout (which islands are near), dependency gives structure (which have bridges). connected papers is a similarity graph (co-citation, bibliographic coupling), good for layout, wrong for bridges. v0 has no similarity data yet, so layout is a force layout over the dependency graph only; paper embeddings (SPECTER via Semantic Scholar, or OpenAlex concepts) should replace it.
+- where you step off is the query vector: between two islands = interpolation (find the bridge), off the rim = extrapolation (new frontier), into an island = zoom (the subproblem becomes its own archipelago; hierarchy as level of detail).
+- expansion is slow and the game is fast: prefetch one ring of fog around the frontier, and make waiting diegetic (a boat; fog clears as results arrive).
+- exploration reuses the proposal queue: found land is a sandbar until a fragment lands or a batch approves. that keeps the rule: fragments and amplification restructure automatically, humans queue.
+- guard against unbounded cost (every step is an API/model call; charge provisions earned by contributions; iron walks, bronze sails) and duplicates (dedupe by paper key; a re-found paper becomes a road to its existing island, which is how highways between explored regions appear).
+- erosion: pheromone decay sinks roads, unvisited unsolved islands drift into mist, solved nodes raise land. then the map is the graph, not a picture of it.
+- Semantic Scholar rate-limits unauthenticated calls to uselessness; OpenAlex is free and polite-pooled with a mailto. proposals from exploration are currently paper titles with a link, not questions; turning a paper into a subproblem is a review-time (or LLM) step.

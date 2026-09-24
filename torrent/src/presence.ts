@@ -1,7 +1,7 @@
 // What this pear does in the room: join/leave problems, say things, propose
 // subproblems, and (as coordinator) settle the proposal queue.
 
-import { onProposal, onReview } from './restructure.ts'
+import { onProposal, onReview, onWalk } from './restructure.ts'
 import { broadcastChat, broadcastControl } from './send.ts'
 import { label, logChat, logEvent, self } from './state.ts'
 
@@ -41,4 +41,11 @@ export function reviewAll() {
   if (!self.coordinator) return logEvent('only the coordinator settles proposals')
   const settled = onReview('all')
   if (!settled.length) logEvent('no proposals pending')
+}
+
+// The browser game reports a walk between two islands; the coordinator
+// counts it (see restructure.onWalk).
+export function walk(problemId: string, a: string, b: string) {
+  if (self.coordinator) onWalk(problemId, a, b)
+  else broadcastControl({ t: 'walk', problemId, a, b })
 }

@@ -22,12 +22,29 @@ export interface GraphNode {
   createdAt: number
 }
 
+// `requires` gates readiness. `road` is association only: worn in by
+// players walking between two islands (see `Trail`), it shapes the layout
+// and the map but never blocks anyone.
+export type EdgeKind = 'requires' | 'road'
+
 export interface GraphEdge {
   problemId: string
   src: string
   dst: string
   weight: number
+  kind: EdgeKind
 }
+
+// A desire path: how often players have walked between two islands
+// (a < b). At ROAD_AFTER walks it becomes a road edge.
+export interface Trail {
+  problemId: string
+  a: string
+  b: string
+  walks: number
+}
+
+export const ROAD_AFTER = 3
 
 export interface Proposal {
   id: number
@@ -46,6 +63,7 @@ export interface GraphSnapshot {
   nodes: GraphNode[]
   edges: GraphEdge[]
   pending: Proposal[]
+  trails: Trail[]
 }
 
 export interface TreeNode extends GraphNode {
@@ -67,7 +85,7 @@ export function readySet(snap: Pick<GraphSnapshot, 'nodes' | 'edges'>): Set<stri
   const status = new Map(snap.nodes.map((n) => [n.id, n.status]))
   const blocked = new Set<string>()
   for (const e of snap.edges) {
-    if (status.get(e.dst) === 'open') blocked.add(e.src)
+    if (e.kind === 'requires' && status.get(e.dst) === 'open') blocked.add(e.src)
   }
   const ready = new Set<string>()
   for (const n of snap.nodes) {

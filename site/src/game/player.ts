@@ -7,7 +7,7 @@ import { clamp, damp, lerp } from './noise.ts'
 import type { Collider } from './props.ts'
 import { THERMALS, type Form } from './regions.ts'
 import { heightAt, waterAt, WORLD } from './terrain.ts'
-import { mat } from './props.ts'
+import { buildFigure } from './figures.ts'
 
 const GRAVITY = 24
 const FORM_STATS = {
@@ -36,64 +36,9 @@ export class Player {
   private flapTimer = 0
 
   constructor() {
-    this.bodies = { human: this.human(), owl: this.owl(), naiad: this.naiad(), stag: this.stag() }
+    this.bodies = { human: buildFigure('human'), owl: buildFigure('owl'), naiad: buildFigure('naiad'), stag: buildFigure('stag') }
     for (const b of Object.values(this.bodies)) this.group.add(b)
     this.setForm('human')
-  }
-
-  private human() {
-    const g = new THREE.Group()
-    g.add(this.part(new THREE.BoxGeometry(0.8, 1.4, 0.5), 0xc76b4a, 0.7))
-    g.add(this.part(new THREE.BoxGeometry(0.5, 0.5, 0.5), 0xe9c9a5, 1.7))
-    return g
-  }
-
-  private owl() {
-    const g = new THREE.Group()
-    g.add(this.part(new THREE.ConeGeometry(0.45, 1.2, 6), 0x8a6a4a, 0.6, Math.PI / 2))
-    g.add(this.part(new THREE.SphereGeometry(0.35, 6, 5), 0xa08a6a, 0.9))
-    for (const side of [-1, 1]) {
-      const wing = this.part(new THREE.BoxGeometry(1.8, 0.08, 0.7), 0x7a5a3a, 0.7)
-      wing.position.x = side * 1.1
-      wing.name = side < 0 ? 'wingL' : 'wingR'
-      g.add(wing)
-    }
-    return g
-  }
-
-  private naiad() {
-    const g = new THREE.Group()
-    const m = new THREE.MeshLambertMaterial({ color: 0x7fe0e8, transparent: true, opacity: 0.75, emissive: 0x104050 })
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 1, 3, 8), m)
-    body.position.y = 0.9
-    g.add(body)
-    return g
-  }
-
-  private stag() {
-    const g = new THREE.Group()
-    g.add(this.part(new THREE.BoxGeometry(0.8, 0.8, 1.8), 0x8a5a3a, 1.1))
-    g.add(this.part(new THREE.BoxGeometry(0.4, 0.5, 0.7), 0x8a5a3a, 1.7, 0, 0.9))
-    for (const side of [-1, 1]) {
-      const antler = this.part(new THREE.ConeGeometry(0.08, 0.9, 4), 0xe0d0b0, 2.4, 0, 0.9)
-      antler.position.x = side * 0.22
-      antler.rotation.z = side * 0.4
-      g.add(antler)
-    }
-    for (const [x, z] of [[-0.3, -0.6], [0.3, -0.6], [-0.3, 0.6], [0.3, 0.6]]) {
-      const leg = this.part(new THREE.BoxGeometry(0.16, 0.8, 0.16), 0x6a4a2a, 0.4, 0, z)
-      leg.position.x = x
-      g.add(leg)
-    }
-    return g
-  }
-
-  private part(geo: THREE.BufferGeometry, color: number, y: number, rx = 0, z = 0) {
-    const m = new THREE.Mesh(geo, mat(color))
-    m.position.set(0, y, z)
-    m.rotation.x = rx
-    m.castShadow = true
-    return m
   }
 
   setForm(form: Form) {

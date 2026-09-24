@@ -7,8 +7,22 @@ import type { Controls } from './game/controls.ts'
 import { REGIONS } from './game/regions.ts'
 import { mapImage, toMap } from './game/terrain.ts'
 
-// Only the place and Ovid's line on it (A. S. Kline's translation).
+// Only the place and Ovid's line on it (A. S. Kline's translation). On a
+// research island the panel carries the subproblem instead.
 export function Status({ hud }: { hud: HudState }) {
+  const r = hud.research
+  if (r) {
+    const state = r.status === 'open' ? (r.ready ? 'ready' : 'blocked') : r.status
+    return (
+      <div className="status panel">
+        <div className="region">
+          {r.id} · {r.title}
+        </div>
+        <div className="ovid">{r.text}</div>
+        <div className="label">feynman's prism · {state}</div>
+      </div>
+    )
+  }
   return (
     <div className="status panel">
       <div className="region">{hud.region}</div>
@@ -69,13 +83,36 @@ export function MapOverlay({ hud }: { hud: HudState }) {
     ctx.font = '11px system-ui'
     ctx.fillStyle = '#2f3a30'
     for (const r of REGIONS) ctx.fillText(r.name.split(',')[0], toMap(r.x, MAP) - 20, toMap(r.z, MAP))
+    for (const i of hud.islets) {
+      ctx.fillStyle = { solved: '#d9b64a', ready: '#5aa469', retired: '#3a4a52' }[i.status] ?? '#8a9aa0'
+      ctx.beginPath()
+      ctx.arc(toMap(i.x, MAP), toMap(i.z, MAP), 2, 0, Math.PI * 2)
+      ctx.fill()
+    }
     ctx.fillStyle = '#d4835a'
     ctx.beginPath()
     ctx.arc(toMap(hud.playerMap.x, MAP), toMap(hud.playerMap.z, MAP), 4, 0, Math.PI * 2)
     ctx.fill()
-  }, [hud.mapOpen, hud.playerMap])
+  }, [hud.mapOpen, hud.playerMap, hud.islets])
   if (!hud.mapOpen) return null
   return <canvas ref={ref} className="map" width={MAP} height={MAP} />
+}
+
+export function PauseButton({ hud, onToggle }: { hud: HudState; onToggle: () => void }) {
+  return (
+    <button type="button" className="pause panel" onClick={onToggle} aria-label={hud.paused ? 'resume' : 'pause'}>
+      {hud.paused ? '▶' : '❚❚'}
+    </button>
+  )
+}
+
+export function PauseVeil({ hud }: { hud: HudState }) {
+  if (!hud.paused) return null
+  return (
+    <div className="veil">
+      <div className="label">paused</div>
+    </div>
+  )
 }
 
 export function Notice({ hud, onRestart }: { hud: HudState; onRestart: () => void }) {
@@ -93,7 +130,7 @@ export function Help() {
   return (
     <div className="help panel">
       <kbd>WASD</kbd>move <kbd>Space</kbd>up/jump <kbd>Shift</kbd>down <kbd>E</kbd>interact{' '}
-      <kbd>M</kbd>map · <kbd>Q</kbd>walk/fly · <kbd>MMB</kbd>drag orbits <kbd>Shift</kbd>+drag pans <kbd>Ctrl</kbd>+drag or scroll zooms
+      <kbd>M</kbd>map <kbd>P</kbd>pause · <kbd>Q</kbd>walk/fly · <kbd>MMB</kbd>drag orbits <kbd>Shift</kbd>+drag pans <kbd>Ctrl</kbd>+drag or scroll zooms
     </div>
   )
 }
@@ -129,6 +166,7 @@ const BUTTONS: Array<[string, string]> = [
   ['e', 'E'],
   ['q', 'Q'],
   ['m', 'M'],
+  ['p', '❚❚'],
 ]
 
 export function MobileControls({ controls }: { controls: Controls }) {

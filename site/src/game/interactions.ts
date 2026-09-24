@@ -64,7 +64,8 @@ export class Interactions {
     if (npc) return { key: 'E', text: `speak with ${npc.name}` }
     if (this.engine.carts.some((c) => c.nearEnd(p.pos.x, p.pos.z) !== null)) return { key: 'E', text: 'ride the cart' }
     const pool = poolAt(p.pos.x, p.pos.z)
-    if (pool?.spring && p.form === 'naiad') return { key: 'E', text: 'follow the spring' }
+    const to = pool?.spring ? POOLS.find((q) => q.id === pool.spring) : null
+    if (to && p.form === 'naiad') return { key: 'E', text: `follow the water to ${to.label}` }
     return null
   }
 
@@ -92,6 +93,5 @@ export class Interactions {
     this.engine.particles.burst(p.pos, 0x7fe0e8)
     p.place(target.x, target.z, target.y)
     this.engine.particles.burst(p.pos, 0x7fe0e8)
-    this.say('the spring', 'The water remembers the way.')
   }
 }

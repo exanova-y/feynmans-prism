@@ -7,6 +7,10 @@ features:
 - expand problem: see the subproblems
 - see how many other peers per problem. have fake dummy peer function initially. join. disconnect functions. these influence the numbers. later, these placeholder functions can be populated
 
+UI:
+- browser game where people can literally walk through rome and greece. maybe with this it will be a nice visual demo of how to contribute to the autoresearch. but algorihmically it is much faster. but visually it is slower and allows digestion time.
+- torrent like terminal
+
 UX:
 - anyone with a laptop opens the url: feynman.network/join to enter feynman's rainbow
 displays: username, total contribution, devices owned. here, the more contributions, the more devices owned.

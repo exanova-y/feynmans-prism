@@ -1,14 +1,18 @@
 # Metamorphoses
+/site/
 
 Create a playable browser-based 3D exploration game using Three.js, inspired by Ovid’s *Metamorphoses*. Use a single HTML/JS file or minimal files. The player begins as a human in miniature mythic Greece, discovering overlapping routes by walking, carting, flying and swimming. Each transformation changes movement physics, camera behaviour, sound, environmental perception and accessible paths.
 
 ### implementation edits:
 - music always plays. no white noise needed
-- the upper left corner only gives a definition faithful to Ovid's metamorphosis from poetryintranslation.com/PITBR/Latin/Metamorph.php no additional text instructions
+- the upper left corner only gives a definition from Ovid's metamorphosis from https://www.poetryintranslation.com/PITBR/Latin/Metamorph.php no additional text instructions
 - player can switch between walking and flying at any point. swimming is only available in water. different modes correspond to different shapes
 - no instruction on the upper right corner.
 - other humans can appear in the browser as different laptops connect as compute.
 - the flying logic: direction matches the current view point angle, rather than adjusting when user presses "w"
+- when players are walking they can see the latent space and navigate between research topics in real time according to intuition, and discover lands accordingly. maybe toggle between different viewpoint like stellaris so player can also see the tree they constructed in the browser. sometimes there are no insightful concepts discovered. when there are insightful concepts it ~= discovering life in stellaris
+
+
 
 ### sound files
 possible files:

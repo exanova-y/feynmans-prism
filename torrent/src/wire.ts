@@ -35,7 +35,17 @@ export type Control =
   | { t: 'chat'; from: string; text: string } // broadcasted message (for Discord stirring)
   | { t: 'propose-subproblem'; problemId: string; parentId: string | null; text: string } // human proposal → coordinator's review queue
   | { t: 'review-proposals'; approve: number[]; reject: number[] } // settle a batch of the queue
+  | { t: 'walk'; problemId: string; a: string; b: string } // a player walked between two islands
   | ({ t: 'graph' } & GraphSnapshot) // coordinator → everyone, after each change
+  | ({ t: 'pose' } & Pose) // where this pear's player stands in the browser game
+
+export interface Pose {
+  x: number
+  y: number
+  z: number
+  heading: number
+  form: string
+}
 
 export type ControlOf<T extends Control['t']> = Extract<Control, { t: T }>
 

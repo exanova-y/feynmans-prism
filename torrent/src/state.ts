@@ -8,6 +8,7 @@ import { create } from 'zustand'
 import type { PeerSocket } from './room.ts'
 import type { CoordinatorLedger, PeerMetrics } from './fragments.ts'
 import { initLedger } from './fragments.ts'
+import type { Pose } from './wire.ts'
 import type { GraphSnapshot } from './tree.ts'
 
 export interface Remote {
@@ -18,6 +19,7 @@ export interface Remote {
   coordinator: boolean
   hello: boolean // has it spoken our control protocol at all?
   since: number
+  pose?: Pose // last position gossiped from its browser game
 }
 
 export interface FeedEntry {
@@ -38,12 +40,20 @@ export const self = {
   coordinatorId: null as string | null, // peerId of the coordinator, if not us
   online: false,
   joined: new Set<string>(),
+  pose: undefined as Pose | undefined,
 }
 
 export const remotes = new Map<string, Remote>()
 // Problem graphs as last broadcast by the coordinator (the coordinator
-// mirrors its own here too). Keyed by problem id.
+// mirrors its own here too). Keyed by problem id. `graphVersion` ticks on
+// every change so the browser bridge knows when to resend a world.
 export const graphs = new Map<string, GraphSnapshot>()
+export const graphVersion = { n: 0 }
+
+export function setGraph(snap: GraphSnapshot) {
+  graphs.set(snap.problemId, snap)
+  graphVersion.n += 1
+}
 export const feed: FeedEntry[] = []
 const FEED_MAX = 60
 

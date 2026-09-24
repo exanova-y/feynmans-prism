@@ -4,8 +4,8 @@
 import { clearHelloGrace, demoteCoordinator, elect, maybeElect, resolveNameCollision } from './naming.ts'
 import { peerId, readLines, type PeerSocket } from './room.ts'
 import { hello, sendControl } from './send.ts'
-import { graphs, logChat, logEvent, notify, remoteLabel, remotes, self, type Remote } from './state.ts'
-import { onProposal, onReview, publishTo } from './restructure.ts'
+import { logChat, logEvent, notify, remoteLabel, remotes, self, setGraph, type Remote } from './state.ts'
+import { onProposal, onReview, onWalk, publishTo } from './restructure.ts'
 import { parseChat, parseControl, type Control, type ControlOf } from './wire.ts'
 import {
   handleAssignmentPickup,
@@ -27,6 +27,7 @@ export function onConnection(socket: PeerSocket) {
     coordinator: prev?.coordinator ?? false,
     hello: prev?.hello ?? false,
     since: prev?.since ?? 0,
+    pose: prev?.pose,
   })
   sendControl(socket, hello())
   // Scripts never say hello, so the graph goes out with ours, not after theirs.
@@ -77,10 +78,21 @@ function handleGraphControl(msg: Partial<Control> & { t: string }, fromId: strin
       if (self.coordinator) onReview(m.approve ?? [], m.reject ?? [])
       return
     }
+    case 'walk': {
+      const m = msg as ControlOf<'walk'>
+      if (self.coordinator) onWalk(m.problemId, m.a, m.b)
+      return
+    }
     case 'graph': {
       const m = msg as ControlOf<'graph'>
       if (self.coordinator || fromId !== self.coordinatorId) return
-      graphs.set(m.problemId, { problemId: m.problemId, nodes: m.nodes, edges: m.edges, pending: m.pending })
+      setGraph({
+        problemId: m.problemId,
+        nodes: m.nodes,
+        edges: m.edges,
+        pending: m.pending,
+        trails: m.trails ?? [],
+      })
       return notify()
     }
   }
@@ -101,6 +113,11 @@ function onLine(rid: string, r: Remote, raw: string) {
     case 'join':
     case 'leave':
       return onMembership(rid, r, msg as ControlOf<'join' | 'leave'>)
+    case 'pose': {
+      const { x, y, z, heading, form } = msg as ControlOf<'pose'>
+      r.pose = { x, y, z, heading, form }
+      return
+    }
     default:
       return handleFragmentControl(msg, rid)
   }

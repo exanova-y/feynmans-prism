@@ -9,23 +9,192 @@ but instead of movies there are open problems.
 
 ![](docs/torrent-peers.png)
 
-## torrent in 30 seconds
+## start a room in 30 seconds
 
-Needs Node.js ≥ 22.22, [pnpm](https://pnpm.io) and, for rooms of many pears, `brew install tmux`.
+Run every command below from the repository root. Needs Node.js ≥ 22.22 and
+[pnpm](https://pnpm.io); allow extra time for the first dependency install.
+No model API key, Python, or tmux is needed for a room.
+
+**Terminal 1 — start room `lab` and join the credit-assignment problem:**
 
 ```bash
 pnpm -C torrent install
-pnpm -C torrent pear             # you are in room "pears" as, say, Eridanus. first pear in = coordinator
+pnpm -C torrent pear -- --room lab --auto-join credit-assignment
 ```
 
-Open a second terminal and run the last line again with `--home <dir>`: the
-header flips to `online · 1 peers` and the new pear shows up under its own
-name. Keys: `j`/`k` move · `space` join/leave a problem · `enter` expand ·
-`m` message · `q` quit.
+**Terminal 2 — join the same room on this machine:**
+
+```bash
+pnpm -C torrent pear -- --room lab --home .pears/lab/second --bridge 0 --auto-join credit-assignment
+```
+
+Expect the first pear to show `coordinator`, both to show one other peer, and
+the credit-assignment problem to have one other participant. Press `enter` to
+expand its subproblems. Keys: `j`/`k` move · `space` join/leave · `m` message ·
+`q` quit (Ctrl-C also stops a pear).
+
+On a **second machine**, install the dependencies and run Terminal 1's command
+there instead. Both machines must be online on the same Tailscale/Headscale
+network, use the same room name, and allow TCP ports `7100–7109` between them.
+Check `tailscale status` if they do not connect. Add `--local` to keep a pear
+on loopback; [invite setup](#joining-from-a-link) is below.
 
 The first run writes your identity to `~/.feynman/identity.json`: a keypair and
 a device name drawn at random from the DESIGN.md list (Nonacris, Eridanus,
 Corinth…). A second pear on the same machine needs its own with `--home <dir>`.
+The second command disables its browser bridge so the first pear keeps port 7300.
+
+Rooms currently share chat, membership and a problem graph. Joining a problem
+does not start research or donate CPU/GPU capacity. Automatic remote assignment
+and contribution-based compute permissions are not implemented.
+
+Next: [show the tree in a browser](#show-the-tree-in-a-browser) ·
+[run chunking and research](#chunking-and-research) ·
+[verify a run or the software](#verification) ·
+[start several pears](#start-several-pears).
+
+## show the tree in a browser
+
+The **research tree viewer** displays paper arguments, dependencies, open
+questions, source passages and review verdicts. A fresh clone has no saved
+database: [create a research run first](#chunking-and-research). With a saved run:
+
+```bash
+node tools/research/cli.mjs view \
+  --db tools/outputs/credit-assignment.sqlite \
+  --out tools/outputs/credit-assignment.view.html
+```
+
+Open `tools/outputs/credit-assignment.view.html` in your browser (double-click
+the file), or use the command for your desktop:
+
+```bash
+open tools/outputs/credit-assignment.view.html      # macOS
+xdg-open tools/outputs/credit-assignment.view.html  # Linux desktop
+```
+
+The HTML is self-contained: viewing needs no server, API key or model call.
+Click a node to inspect its source and review. Regenerate the HTML after changing
+the database. Saved databases are ignored by git and **are not included in a
+fresh clone**; create one with the next section first. If you have the earlier
+`credit-assignment-passages.sqlite` run, substitute that path after `--db`.
+
+For the **live room graph as islands**, leave Terminal 1 running and open a
+third terminal:
+
+```bash
+pnpm -C site install
+pnpm -C site dev
+```
+
+Open the URL Vite prints (normally http://localhost:5173). The game reads the
+pear's bridge at `http://127.0.0.1:7300`; press `M` for the map. This shows the
+room's seeded subproblems and peer updates. The research viewer and room graph
+use separate databases; research runs are not automatically imported into rooms.
+
+## chunking and research
+
+This executor turns one question into a source-backed tree. It needs an installed
+Feynman runtime and configured provider credentials, in addition to Node.js.
+`torrent/.env.local` is for pear agents; this executor uses Feynman's model
+authentication. See [runtime setup and options](tools/research/README.md).
+
+**Check setup** — replace the path with your Feynman app directory containing
+`package.json` and `node_modules`:
+
+```bash
+export FEYNMAN_RUNTIME_ROOT=/absolute/path/to/feynman/app
+node tools/research/cli.mjs doctor
+```
+
+`doctor` lists configured providers and model IDs without making a model call.
+Use a provider/model from that output in the command below.
+
+**Create a new tree** — this retrieves papers and makes billable model calls;
+it can take several minutes:
+
+```bash
+node tools/research/cli.mjs run \
+  --db tools/outputs/credit-assignment.sqlite \
+  --provider openrouter --model anthropic/claude-haiku-4.5 \
+  --question-file graphs/corpus/open-problems-sept-11 --question-line 1 \
+  --task-file graphs/corpus/feynman-prompt.md \
+  --retrieval public --policy aco \
+  --max-sources 4 --max-model-calls 8 --max-tokens 80000 \
+  --max-input-chars 18000 --max-elapsed-ms 900000
+```
+
+Change `--question-line` to select another problem. Use a new database path for
+each new run. To continue an existing run with its saved configuration:
+
+```bash
+node tools/research/cli.mjs resume --db tools/outputs/credit-assignment.sqlite
+```
+
+The implemented chunking and scheduling steps are:
+
+1. Fetch paper text and retain its source snapshot and hash.
+2. Split it into 1,000-character windows, advancing 800 characters each time
+   (200-character overlap; offsets use UTF-16 code units). Keep the first window,
+   then prioritize question-word matches and discussion/conclusion/limitation
+   passages within `--max-input-chars`.
+3. Ask the model to extract assumptions, conclusions, dependencies and open
+   questions, each linked to a supplied passage. A separate model call reviews
+   the extracted claims against those passages.
+4. Ant colony optimization (`--policy aco`) selects the next eligible
+   search/fetch/extract/verify/follow action. Reviewed evidence reinforces the
+   traversed action paths. `--policy greedy` selects by the fixed heuristic
+   instead; compare policies using separate runs.
+
+Code: [passage selection and extraction](tools/research/evidence.mjs),
+[scheduler](tools/research/scheduler.mjs). This runs in one process; the ants
+are local path simulations. It does not dispatch chunks to room peers.
+The configured budgets bound this executor's work; they are not a dollar cap.
+
+## verification
+
+**Inspect a research run** — these commands read saved results without model calls:
+
+```bash
+node tools/research/cli.mjs status --db tools/outputs/credit-assignment.sqlite
+node tools/research/cli.mjs tree --db tools/outputs/credit-assignment.sqlite
+node tools/research/cli.mjs answer --db tools/outputs/credit-assignment.sqlite
+```
+
+Check `status` for failures, reviewed sources, reported tokens and tokens reserved
+for calls whose usage is unknown. In the browser tree, inspect each claim's exact
+passage, dependency links and `supported` / `unsupported` / `uncertain` verdict.
+Source offsets and graph structure are checked deterministically; semantic review
+is a fallible model judgment, not proof that the research problem is solved.
+In rooms, `fragment-submit` marks a node solved immediately; it does not invoke
+this evidence-review pipeline.
+
+**Check the software** — no model credentials or paid calls needed:
+
+```bash
+pnpm -C torrent check                         # lint, typecheck, peer/protocol tests
+node --test tests/research-tree.test.mjs      # chunking/evidence, budgets, recovery, viewer
+pnpm -C site install
+pnpm -C site build                           # typecheck and build the browser game
+uv sync                                     # Python tools; requires uv and Python >= 3.13
+uv run python -m unittest discover -s tests   # corpus/policy tests
+```
+
+**Room smoke test:** with the two quick-start pears running, use a third terminal:
+
+```bash
+pnpm -C torrent message -- "hello from the smoke test" --room lab
+```
+
+Both feeds should show the message. Quit the coordinator with `q`: the remaining
+pear should become coordinator. Quit it too. For a cross-machine check, repeat
+with one pear on each machine on the same tailnet.
+
+Last local audit (2026-09-24): torrent lint/typecheck passed; 60/61 torrent tests
+passed (one Discord worker-failure test failed); research-tree tests passed 19/19;
+site build passed. Python tests passed 4/7, with three errors from the missing
+`graphs/corpus_ingest/rwx.md`. Two-process room discovery, chat and coordinator
+failover passed. Cross-machine operation remains unverified in this checkout.
 
 ## joining from a link
 
@@ -50,12 +219,23 @@ for another device of your own. If `tailscale` is
 running, pears on every online device of your tailnet see each other too;
 `--local` keeps a pear on loopback.
 
+## start several pears
+
+For several interactive peers on one machine, install `tmux` (for example,
+`brew install tmux` on macOS or `sudo apt install tmux` on Ubuntu), then:
+
 ```bash
-pnpm -C torrent orchestrator -- 5        # a whole room at once, tiled in tmux
-pnpm -C torrent orchestrator -- stop
+pnpm -C torrent orchestrator -- 3 --room lab --join
+tmux attach -t pears-lab                           # reconnect after detaching
+pnpm -C torrent orchestrator -- stop --room lab     # from another terminal
 ```
 
-Start DeepSeek pears with one command from the repo root (requires `just` and `tmux`):
+Ctrl+B then D detaches and leaves the room running. `--join` selects a problem
+for each pear. On macOS, `--terminal` opens separate Terminal windows instead.
+
+For **model conversations**, set `OPENROUTER_API_KEY` in `torrent/.env.local`
+or use your saved opencode login. Then start DeepSeek pears (requires `just`
+and `tmux`; assignments make billable model calls):
 
 ```bash
 just pears 3 lab          # start or reopen 3 pears in room lab
@@ -68,8 +248,9 @@ just pears-stop lab      # stop the room
 and press Enter; subsequent lines are follow-ups. Ctrl+B then D leaves the room
 running. Larger groups use up to four panes per tmux window; click the window
 name in the bottom bar to switch. Pears wait for manual assignments and ignore
-room chat. Set `OPENROUTER_API_KEY` in `torrent/.env.local` or use your saved
-opencode login. `PEAR_MODEL` optionally selects another `deepseek/` model.
+room chat. `PEAR_MODEL` optionally selects another `deepseek/` model. These
+personas have no browsing or experiment tools; use the research executor above
+for paper retrieval and evidence review.
 
 ## all commands
 
@@ -77,7 +258,7 @@ Run from the repo root. Room commands take `--room <name>` to select a room.
 
 | Command | What it does |
 | --- | --- |
-| `pnpm -C torrent pear -- [--room r] [--name n \| --index i] [--auto-join id] [--coordinator] [--local] [--home dir]` | one pear (Ink TUI; headless when stdin is not a TTY) |
+| `pnpm -C torrent pear -- [--room r] [--name n \| --index i] [--auto-join id] [--coordinator] [--local] [--home dir] [--bridge 7300]` | one pear (Ink TUI; headless when stdin is not a TTY). `--bridge` is the loopback port the browser game reads the room from; `0` disables |
 | `pnpm -C torrent orchestrator -- [N=5] [--room r] [--join] [--terminal]` | start N pears in a tmux session (`--terminal`: macOS Terminal windows); pear #i keeps its identity in `torrent/.pears/<room>/<i>` |
 | `pnpm -C torrent orchestrator -- stop [--room r]` | kill the tmux session; every pear closes its sockets |
 | `pnpm -C torrent join -- [--invite code] [--home dir] [--room r] [--no-launch]` | one-time setup: tailnet login with the invite, username, then the pear |
@@ -101,7 +282,7 @@ Run from the repo root. Room commands take `--room <name>` to select a room.
 | `just run "focused ultrasound"` | ingest, then policy |
 | `just test` · `just lint` | Python unittest · ruff |
 | `node tools/research/cli.mjs --help` | one-question SQLite research tree ([docs](tools/research/README.md)) |
-| `node tools/research/cli.mjs tree --db tools/outputs/credit-assignment-passages.sqlite` | inspect the completed credit-assignment tree |
+| `node tools/research/cli.mjs tree --db tools/outputs/credit-assignment.sqlite` | inspect the saved tree generated by the research command above |
 
 Postgres for the gate: `export DATABASE_URL="postgresql://postgres@localhost:5432/propagate"`
 (a local brew postgres with trust auth works).
@@ -239,6 +420,18 @@ instead and are settled in batches (`r` as coordinator, `pnpm review`).
 Expanding a problem shows the tree: `✓` solved, `○` ready, `·` blocked on an
 open requirement.
 
+**Islands.** The pear's loopback bridge (`--bridge`, port 7300) also serves
+the research graph to the browser game in `site/`: `GET /world?problem=`,
+`GET /research` (an event stream with every problem's world on connect and
+after each change), `POST /explore` and `POST /walk`. `torrent/src/world.ts`
+turns a snapshot into islands (nodes, shape hashed from the id, position from
+a deterministic force layout), causeways (requires-edges), roads, trails and
+shoals (pending proposals); the game scales it onto the sea southwest of
+Arcadia. Walking from one island to another is a walk; three walks between
+the same two wear a road in, which the layout then pulls closer. Explore
+(sail off the map to search OpenAlex for new land) is served but the game
+does not call it yet.
+
 **Personas** are the JSON block in [PEARS.md](PEARS.md) (read at startup by the
 LLM agents). The `stirrer` walks the problem list in `torrent/src/data.ts`, the
 single source of truth for names and problems.
@@ -277,7 +470,7 @@ use another domain, change it in `Caddyfile`, `config.yaml` (`server_url`,
   SIGHUP, so this should only happen after a hard kill.
 - **Two coordinators.** Two pears that both started into an apparently empty
   room self-elect; on meeting, the earlier start wins, the other gives up its
-  name and asks the winner for one. Harmless.
+  coordinator role. Device names are resolved separately if they collide.
 
 ## repo map
 

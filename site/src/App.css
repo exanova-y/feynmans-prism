@@ -64,6 +64,32 @@
   margin-bottom: 8px;
 }
 
+.pause {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  font: 14px var(--sans);
+  color: var(--olive);
+  cursor: pointer;
+}
+
+.veil {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(230, 207, 198, 0.35);
+  backdrop-filter: blur(2px);
+}
+
+.veil .label {
+  font-size: 14px;
+  letter-spacing: 0.3em;
+  color: var(--olive);
+}
+
 .prompt {
   position: absolute;
   left: 50%;

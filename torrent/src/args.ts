@@ -7,6 +7,7 @@
 //   pnpm pear -- --name Eridanus --auto-join credit-assignment
 //   pnpm pear -- --local                         # loopback only, ignore the tailnet
 //   pnpm pear -- --home .pears/2                 # identity dir (default ~/.feynman)
+//   pnpm pear -- --bridge 0                      # no loopback bridge for the browser game (default port 7300)
 //
 // Legacy positional form is still accepted: <room> <name> <auto-join>.
 
@@ -21,6 +22,7 @@ export interface PearOptions {
   coordinator: boolean
   local: boolean
   home: string
+  bridge: number // loopback port for the browser game; 0 disables
 }
 
 export function parsePearArgs(argv: string[]): PearOptions {
@@ -36,5 +38,6 @@ export function parsePearArgs(argv: string[]): PearOptions {
     coordinator: f.opts.coordinator === true,
     local: f.opts.local === true,
     home: flagString(f, 'home', defaultHome()),
+    bridge: Number(flagString(f, 'bridge', '7300')) || 0,
   }
 }

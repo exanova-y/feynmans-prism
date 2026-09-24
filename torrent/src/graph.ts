@@ -12,13 +12,16 @@ import { PLACEHOLDER, type Problem } from './data.ts'
 import {
   clampWeight,
   nextId,
+  ROAD_AFTER,
   WEIGHT_FLOOR,
+  type EdgeKind,
   type GraphEdge,
   type GraphNode,
   type GraphSnapshot,
   type NodeOrigin,
   type NodeStatus,
   type Proposal,
+  type Trail,
 } from './tree.ts'
 
 const SCHEMA = `
@@ -28,7 +31,11 @@ CREATE TABLE IF NOT EXISTS nodes (
   created_at INTEGER NOT NULL, PRIMARY KEY (problem_id, id));
 CREATE TABLE IF NOT EXISTS edges (
   problem_id TEXT NOT NULL, src TEXT NOT NULL, dst TEXT NOT NULL,
-  weight REAL NOT NULL DEFAULT 1, PRIMARY KEY (problem_id, src, dst));
+  weight REAL NOT NULL DEFAULT 1, kind TEXT NOT NULL DEFAULT 'requires',
+  PRIMARY KEY (problem_id, src, dst));
+CREATE TABLE IF NOT EXISTS trails (
+  problem_id TEXT NOT NULL, a TEXT NOT NULL, b TEXT NOT NULL,
+  walks INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (problem_id, a, b));
 CREATE TABLE IF NOT EXISTS proposals (
   id INTEGER PRIMARY KEY, problem_id TEXT NOT NULL, parent_id TEXT, text TEXT NOT NULL,
   proposer TEXT NOT NULL, submitted_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'pending');
@@ -51,6 +58,13 @@ const toEdge = (r: Row): GraphEdge => ({
   src: r.src as string,
   dst: r.dst as string,
   weight: r.weight as number,
+  kind: (r.kind as EdgeKind | undefined) ?? 'requires',
+})
+const toTrail = (r: Row): Trail => ({
+  problemId: r.problem_id as string,
+  a: r.a as string,
+  b: r.b as string,
+  walks: r.walks as number,
 })
 const toProposal = (r: Row): Proposal => ({
   id: r.id as number,
@@ -76,6 +90,11 @@ export class Graph {
   constructor(path = ':memory:') {
     this.db = new DatabaseSync(path)
     this.db.exec(SCHEMA)
+    try {
+      this.db.exec(`ALTER TABLE edges ADD COLUMN kind TEXT NOT NULL DEFAULT 'requires'`) // files from before roads
+    } catch {
+      // column already there
+    }
   }
 
   close() {
@@ -142,11 +161,35 @@ export class Graph {
     this.db.prepare('UPDATE nodes SET status = ? WHERE problem_id = ? AND id = ?').run(status, problemId, id)
   }
 
-  // src requires dst. Re-linking resets the weight.
-  link(problemId: string, src: string, dst: string, weight = 1) {
+  // src requires dst (or, for a road, src and dst are associated).
+  // Re-linking resets the weight.
+  link(problemId: string, src: string, dst: string, weight = 1, kind: EdgeKind = 'requires') {
     this.db
-      .prepare('INSERT OR REPLACE INTO edges (problem_id, src, dst, weight) VALUES (?, ?, ?, ?)')
-      .run(problemId, src, dst, clampWeight(weight))
+      .prepare('INSERT OR REPLACE INTO edges (problem_id, src, dst, weight, kind) VALUES (?, ?, ?, ?, ?)')
+      .run(problemId, src, dst, clampWeight(weight), kind)
+  }
+
+  // ---- trails: walking between two islands wears a road in ---------------
+
+  // One walk between a and b. Returns the count and whether this walk was
+  // the one that made it a road; later walks keep the road's weight growing.
+  walk(problemId: string, from: string, to: string): { walks: number; created: boolean } {
+    const [a, b] = from < to ? [from, to] : [to, from]
+    if (a === b) return { walks: 0, created: false }
+    const r = this.db
+      .prepare(
+        `INSERT INTO trails (problem_id, a, b, walks) VALUES (?, ?, ?, 1)
+         ON CONFLICT (problem_id, a, b) DO UPDATE SET walks = walks + 1 RETURNING walks`,
+      )
+      .get(problemId, a, b) as Row
+    const walks = r.walks as number
+    if (walks >= ROAD_AFTER) this.link(problemId, a, b, walks, 'road')
+    return { walks, created: walks === ROAD_AFTER }
+  }
+
+  trails(problemId: string): Trail[] {
+    const rows = this.db.prepare('SELECT * FROM trails WHERE problem_id = ? ORDER BY a, b').all(problemId)
+    return (rows as Row[]).map(toTrail)
   }
 
   unlink(problemId: string, src: string, dst: string) {
@@ -220,6 +263,7 @@ export class Graph {
       nodes: this.nodes(problemId),
       edges: this.edges(problemId),
       pending: this.pending(problemId),
+      trails: this.trails(problemId),
     }
   }
 
@@ -236,9 +280,14 @@ export class Graph {
     )
     this.db.exec('BEGIN')
     this.db.prepare('DELETE FROM edges WHERE problem_id = ?').run(snap.problemId)
+    this.db.prepare('DELETE FROM trails WHERE problem_id = ?').run(snap.problemId)
     for (const n of snap.nodes)
       upsertNode.run(n.problemId, n.id, n.parentId, n.text, n.status, n.origin, n.proposer, n.createdAt)
-    for (const e of snap.edges) this.link(e.problemId, e.src, e.dst, e.weight)
+    for (const e of snap.edges) this.link(e.problemId, e.src, e.dst, e.weight, e.kind)
+    for (const t of snap.trails ?? [])
+      this.db
+        .prepare('INSERT INTO trails (problem_id, a, b, walks) VALUES (?, ?, ?, ?)')
+        .run(t.problemId, t.a, t.b, t.walks)
     for (const p of snap.pending)
       upsertProposal.run(p.id, p.problemId, p.parentId, p.text, p.proposer, p.submittedAt, p.status)
     this.db.exec('COMMIT')

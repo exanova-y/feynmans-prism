@@ -16,7 +16,7 @@ import { PROBLEMS } from './data.ts'
 import { Graph } from './graph.ts'
 import type { PeerSocket } from './room.ts'
 import { broadcastControl, sendControl } from './send.ts'
-import { graphs, logEvent, notify, self } from './state.ts'
+import { graphs, logEvent, notify, self, setGraph } from './state.ts'
 import { newlyReady, readySet, type Proposal } from './tree.ts'
 
 let db: Graph | null = null
@@ -36,7 +36,7 @@ export function openGraph(path: string): Graph {
 
 function publish(problemId: string) {
   const snap = graph().snapshot(problemId)
-  graphs.set(problemId, snap)
+  setGraph(snap)
   broadcastControl({ t: 'graph', ...snap })
   notify()
 }
@@ -51,7 +51,7 @@ export function publishTo(socket: PeerSocket) {
 // truth, and it may be newer than this pear's own file.
 export function absorbBroadcasts() {
   for (const snap of graphs.values()) graph().absorb(snap)
-  for (const problemId of graph().problems()) graphs.set(problemId, graph().snapshot(problemId))
+  for (const problemId of graph().problems()) setGraph(graph().snapshot(problemId))
 }
 
 // A fragment solves its node. A node the tree never listed is created on the
@@ -111,4 +111,13 @@ export function onReview(approve: number[] | 'all', reject: number[] = []): Prop
   for (const p of settled) logEvent(`proposal #${p.id} ${p.status}: ${p.text.slice(0, 60)}`)
   for (const problemId of new Set(settled.map((p) => p.problemId))) publish(problemId)
   return settled
+}
+
+// A player walked from one island to another. Enough walks wear a road in;
+// the road pulls the two islands closer in the layout, as a desire path does.
+export function onWalk(problemId: string, from: string, to: string): { walks: number; created: boolean } {
+  const r = graph().walk(problemId, from, to)
+  if (r.created) logEvent(`road ${from} ↔ ${to} worn in after ${r.walks} walks`)
+  if (r.walks) publish(problemId)
+  return r
 }
